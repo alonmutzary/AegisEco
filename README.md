@@ -1,4 +1,11 @@
-# AegisEco - Project Structure
+# AegisEco
+
+before using agents run in terminal:
+```bash
+pip install -r requirements.txt
+```
+
+Project Structure:
 
 ```text
 src/
