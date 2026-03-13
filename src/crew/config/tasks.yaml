@@ -1,0 +1,27 @@
+fetch_and_store_task:
+  description: >
+    Use the IMS fetching tool to get the latest rain data, and the DB tool to save it. 
+    Ensure all current station records are logged.
+  expected_output: >
+    A simple confirmation string stating "Data fetched and stored successfully" along with 
+    the number of stations updated.
+  agent: data_engineer
+
+analyze_risk_task:
+  description: >
+    Use the 'Query High Rainfall Events' tool to search the database for any 
+    recorded measurements where the rainfall exceeded 5.0 mm (in one row). 
+    Analyze the historical February data returned by the tool.
+  expected_output: >
+    A list of flagged stations including the station name, exact date/time, and rainfall amount. 
+    If no stations crossed the threshold, output "No anomalies detected."
+  agent: flood_analyst
+
+alert_task:
+  description: >
+    Review the output from the flood_analyst. If there are flagged stations, generate a 
+    WARNING message highlighting the locations. If the input says "No anomalies detected", 
+    output a calm "All clear" message.
+  expected_output: >
+    A formatted alert string ready to be printed to the console or sent to Telegram.
+  agent: communications_officer
