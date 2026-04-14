@@ -197,8 +197,18 @@ def get_february_data_all_stations():
 
 def get_rain_last_hour(station_id):
     """Calculates total rainfall sum in the last 60 minutes (6 measurements)."""
-    # Use your existing logic to get the daily data
-    # (Simplified here assuming you've found the rain_channel_id)
+    
+    # 1. Fetch metadata to get station_info
+    meta_url = f"{BASE_URL}/{station_id}"
+    meta_response = requests.get(meta_url, headers=headers)
+    
+    if meta_response.status_code != 200:
+        print(f"Error fetching metadata: {meta_response.status_code}")
+        return 0.0
+
+    station_info = meta_response.json()
+    
+    # 2. Extract rain_channel_id
     rain_channel_id = None
     for monitor in station_info.get('monitors', []):
         if monitor.get('name') == 'Rain':
@@ -207,7 +217,9 @@ def get_rain_last_hour(station_id):
 
     if not rain_channel_id:
         print(f"Rain channel not found for station {station_id}")
-        return None
+        return 0.0
+        
+    # 3. Fetch daily data
     daily_url = f"{BASE_URL}/{station_id}/data/{rain_channel_id}/daily"
     resp = requests.get(daily_url, headers=headers)
     
@@ -220,7 +232,6 @@ def get_rain_last_hour(station_id):
         print(f"Station {station_id} | Last Hour Total: {total_hour:.2f}mm")
         return total_hour
     return 0.0
-
 
 if __name__ == "__main__":
     # get_rain_data_by_station(STATION_ID)

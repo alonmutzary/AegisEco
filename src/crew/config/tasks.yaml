@@ -1,10 +1,11 @@
 fetch_and_store_task:
   description: >
-    Use the IMS fetching tool to get the latest rain data, and the DB tool to save it. 
-    Ensure all current station records are logged.
+    You are responsible for updating the AegisEco database with the latest meteorological data.
+    You must perform two distinct steps:
+    1. Use the 'Sync Rain Data' tool to fetch the current measurements from IMS and save them directly to the database in one action.
+    2. Use the 'Update Database Forecasts' tool to fetch the 6-hour rainfall forecasts.
   expected_output: >
-    A simple confirmation string stating "Data fetched and stored successfully" along with 
-    the number of stations updated.
+    A short summary confirming the real-time data sync and the forecast updates.
   agent: data_engineer
 
 analyze_risk_task:
@@ -25,3 +26,33 @@ alert_task:
   expected_output: >
     A formatted alert string ready to be printed to the console or sent to Telegram.
   agent: communications_officer
+
+monitor_warnings_task:
+  description: >
+    Use the 'Fetch IMS Warnings' tool to check for active weather warnings.
+    You MUST format the output EXACTLY according to the strict template below. 
+    There may be multiple warnings. Treat every warning as a separate item.
+    If the tool returns a message of no active warnings (e.g., "No active warnings currently in the IMS feed") return that message directly.
+    Extract the warning type directly from the alert text and format it in Title Case (e.g., Flash Floods).
+
+    TEMPLATE:
+    # {Date}
+
+    ## {Color} - {Warning Type}
+    Regions: {warning regions}
+    Timeframe: {warning time and dates}
+
+    EXAMPLE:
+    # 07/04/2026
+
+    ## Yellow - Flash Floods
+    Regions: Judea Desert, Dead Sea, Northern Arava
+    Timeframe: 10:00 to 22:00 LT
+
+    ## Orange - Flash Floods
+    Regions: Southern Negev
+    Timeframe: 12:00 to 20:00 LT
+  expected_output: >
+    A strict string block using Markdown headers (# for Date, ## for Color and Type), with each warning structured clearly and separated by an empty line.
+  agent: warning_monitor
+
