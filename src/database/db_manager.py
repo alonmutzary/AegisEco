@@ -4,69 +4,85 @@ import psycopg2
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-from data_sentinel.ims_client import get_all_latest_rain_records, get_february_data_all_stations
+from src.data_sentinel.ims_client import get_all_latest_rain_records, get_february_data_all_stations
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-def save_ims_batch_to_db(records_list, batch_size=2000):
+def save_ims_batch_to_db(records: list):
     """
-    Takes the full list of February dictionaries and pushes them 
-    to Neon in optimized chunks.
+    Saves a batch of rain records to the database.
+    Ignores records for stations that do not exist in the 'stations' table
+    to prevent Foreign Key violation errors.
     """
-    if not records_list:
-        print("No records provided to save.")
+    if not records:
+        print("No records to save.")
         return
 
-    # Use your existing DATABASE_URL
-    DATABASE_URL = "postgresql://neondb_owner:npg_gtWTp2KxDe7Y@ep-broad-fog-aimsm40u-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
-
-    # We use a standard VALUES %s syntax for execute_values
-    # ON CONFLICT ensures we don't get errors if a record already exists
-    insert_query = """
-    INSERT INTO rain_measurements (
-        station_id, 
-        rain_amount_mm, 
-        measurement_time, 
-        station_name, 
-        region_id, 
-        status
-    )
-    VALUES %s
-    ON CONFLICT (station_id, measurement_time) DO NOTHING;
-    """
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        print("Error: DATABASE_URL not found in environment.")
+        return
 
     try:
-        conn = psycopg2.connect(DATABASE_URL)
-        cur = conn.cursor()
+        conn = psycopg2.connect(db_url)
+        cursor = conn.cursor()
 
-        # Convert the list of dictionaries into a list of tuples for the batch
-        # This matches the column order in the INSERT statement above
-        data_tuples = [
+        # Prepare the data tuples for bulk insertion
+        values_to_insert = [
             (
-                r['station_id'], 
-                r['rain_amount_mm'], 
-                r['measurement_time'], 
-                r['station_name'], 
-                r['region_id'], 
-                r['status']
-            ) for r in records_list
+                rec['station_id'],
+                rec['station_name'],
+                rec['measurement_time'],
+                rec['rain_amount_mm'],
+                rec.get('region_id', None),
+                rec.get('status', 1)
+            )
+            for rec in records
         ]
+        # Check which stations are missing from the local database
+        cursor.execute("SELECT station_id FROM stations;")
+        existing_station_ids = {row[0] for row in cursor.fetchall()}
+        
+        missing_stations = []
+        for rec in records:
+            if rec['station_id'] not in existing_station_ids:
+                missing_stations.append(f"{rec['station_id']} ({rec['station_name']})")
+                
+        if missing_stations:
+            print(f"Skipping {len(missing_stations)} unregistered stations: {', '.join(missing_stations)}")
+            
+        # The safe SQL query: 
+        # Casts measurement_time to timestamp and filters out unknown stations.
+        insert_query = """
+            INSERT INTO rain_measurements (
+                station_id, station_name, measurement_time, rain_amount_mm, region_id, status
+            )
+            SELECT v.station_id, v.station_name, v.measurement_time::timestamp, v.rain_amount_mm, v.region_id, v.status
+            FROM (VALUES %s) AS v(station_id, station_name, measurement_time, rain_amount_mm, region_id, status)
+            WHERE EXISTS (
+                SELECT 1 FROM stations s WHERE s.station_id = v.station_id
+            )
+            ON CONFLICT DO NOTHING;
+        """
 
-        print(f"--- Starting Bulk Upload to Neon ({len(data_tuples)} records) ---")
+        # Using execute_values for efficient bulk insert
+        execute_values(cursor, insert_query, values_to_insert)
+        conn.commit()
         
-        # This is the magic part: it pushes batch_size records in a single network trip
-        execute_values(cur, insert_query, data_tuples, page_size=batch_size)
-        
-        conn.commit() # Save all changes at once
-        print(f"✅ Successfully processed {len(data_tuples)} records in the database.")
+        # Determine how many rows were actually inserted (optional, but good for logging)
+        inserted_count = cursor.rowcount
+        print(f"Successfully saved {inserted_count} records to 'rain_measurements'.")
 
     except Exception as e:
-        print(f"Database batch error: {e}")
-        if conn: conn.rollback()
+        print(f"Database Error during save: {e}")
+        if 'conn' in locals() and conn:
+            conn.rollback() # Rollback on error
     finally:
-        if cur: cur.close()
-        if conn: conn.close()
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals() and conn:
+            conn.close()
 
 def save_ims_data_to_db(record):
     if not record:
@@ -119,5 +135,6 @@ def fetch_feb_records():
     feb_records = get_february_data_all_stations()
     save_ims_batch_to_db(feb_records)
 
-# fetch_latest_all_stations()
-fetch_feb_records()
+if __name__ == "__main__":
+    # fetch_latest_all_stations()
+    fetch_feb_records()
