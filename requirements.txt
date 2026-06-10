@@ -38,3 +38,5 @@ apscheduler
 
 # Web Framework
 streamlit
+folium
+streamlit-folium

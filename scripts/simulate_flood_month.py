@@ -11,9 +11,9 @@ Then run a single pipeline cycle:
 
 Storm timeline (relative to NOW):
     > 9 days ago  : dry baseline
-    6 – 9 days ago: pre-storm buildup
-    2 – 6 days ago: flood peak        ← fully inside the 8-day ML window
-    0 – 2 days ago: slow recession    ← still above threshold → models fire
+    6 - 9 days ago: pre-storm buildup
+    2 - 6 days ago: flood peak        ← fully inside the 8-day ML window
+    0 - 2 days ago: slow recession    ← still above threshold → models fire
 """
 
 import os
